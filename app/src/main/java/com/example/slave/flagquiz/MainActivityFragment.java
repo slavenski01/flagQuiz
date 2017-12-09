@@ -229,7 +229,7 @@ public class MainActivityFragment extends Fragment {
 
         // Весь макет quizLinearLayout появляется или исчезает с экрана
         private void animate(boolean animateOut) {
-
+            //Здесь должна быть анимация
         }
 
         // Вызывается при нажатии кнопки ответа
@@ -239,4 +239,13 @@ public class MainActivityFragment extends Fragment {
 
             }
         };
+
+        private void disableButtons() {
+            for (int row = 0; row < guessRows; row++) {
+                LinearLayout guessRow = guessLinearLayouts[row];
+                for (int i = 0; i < guessRow.getChildCount(); i++)
+                    guessRow.getChildAt(i).setEnabled(false);
+                }
+        }
+
     }
