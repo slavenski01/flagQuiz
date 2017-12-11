@@ -28,6 +28,7 @@ import android.widget.ExpandableListView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 
 import java.io.IOException;
@@ -48,7 +49,8 @@ public class MainActivityFragment extends Fragment {
         private static final int FLAGS_IN_QUIZ = 10;
         private List<String> fileNameList; //Имена файлов с флагами
         private List<String> quizCountriesList; //Страны текущей викторины
-        private Set<String> regionSet; //Регионы текущей викторины
+        private Set<String> regionsSet; //Регионы текущей викторины
+
         private String correctAnswer; //Правильная страна для текущего флага
         private int totalGuesses; //Количество попыток
         private int correctAnswers; //Количество правильных ответов
@@ -58,6 +60,7 @@ public class MainActivityFragment extends Fragment {
         private Animation shakeAnimation; //Анимация неправильного ответа
 
         private LinearLayout quizLinearLayout; //Макет с викториной
+
 
 
         private TextView questionNumberTextView; //Номер текущего вопроса
@@ -124,27 +127,28 @@ public class MainActivityFragment extends Fragment {
 
         // Обновление выбранных регионов по данным из SharedPreferences
         public void updateRegions(SharedPreferences sharedPreferences) {
-            regionSet = sharedPreferences.getStringSet(MainActivity.REGIONS, null);//Получаем значение из файла preferences.xml по ключу REGIONS
+            regionsSet = sharedPreferences.getStringSet(MainActivity.REGIONS, null);//Получаем значение из файла preferences.xml по ключу REGIONS
         }
 
         //Настройка и запуск следующей серии вопросов
         public void resetQuiz() {
+
             AssetManager assets = getActivity().getAssets();
             fileNameList.clear();
 
             // Использование AssetManager для получения имен файлов изображений
             try {
-                for(String region:regionSet){
+                for(String region:regionsSet){
                     String[] paths = assets.list(region);
-                    for(String path:regionSet){
+                    for(String path : paths){
                         fileNameList.add(path.replace(".png", ""));
                     }
                 }
+
             }
             catch(IOException ex) {
                Log.e(TAG, "Error loading image file names", ex);
             }
-
 
 
             correctAnswers = 0;
@@ -219,6 +223,7 @@ public class MainActivityFragment extends Fragment {
             int column = random.nextInt(2);
             LinearLayout randomRow = guessLinearLayouts[row];
             String countryName = getCountryName(correctAnswer);
+            ((Button) randomRow.getChildAt(column)).setText(countryName);
         }
 
         // Метод разбирает имя файла с флагом и возвращает название страны
@@ -230,13 +235,83 @@ public class MainActivityFragment extends Fragment {
         // Весь макет quizLinearLayout появляется или исчезает с экрана
         private void animate(boolean animateOut) {
             //Здесь должна быть анимация
+            // Предотвращение анимации интерфейса для первого флага
+            if (correctAnswers == 0)
+                return;
+            // Вычисление координат центра
+            int centerX = (quizLinearLayout.getLeft() + quizLinearLayout.getRight()) / 2;
+            int centerY = (quizLinearLayout.getTop() + quizLinearLayout.getBottom()) / 2;
+
+            // Вычисление радиуса анимации
+            int radius = Math.max(quizLinearLayout.getWidth(), quizLinearLayout.getHeight());
+
+            Animator animator;
+
+            // Если изображение должно исчезать с экрана
+            if (animateOut) {
+                // Создание круговой анимации
+                animator = ViewAnimationUtils.createCircularReveal(quizLinearLayout, centerX, centerY, radius, 0);
+                animator.addListener(new AnimatorListenerAdapter() {
+                // Вызывается при завершении анимации
+                    @Override
+                        public void onAnimationEnd(Animator animation) {
+                            loadNextFlag();
+                            }
+                        }
+                );
+            }
+            else { // Если макет quizLinearLayout должен появиться
+                animator = ViewAnimationUtils.createCircularReveal(quizLinearLayout, centerX, centerY, 0, radius);
+                }
+
+            animator.setDuration(500); // Анимация продолжительностью 500 мс
+            animator.start(); // Начало анимации
         }
+
+
 
         // Вызывается при нажатии кнопки ответа
         private View.OnClickListener guessButtonListener = new View.OnClickListener() {
             @Override
-            public void onClick(View view) {
+            public void onClick(View v) {
+                Button guessButton = ((Button) v);
+                String guess = guessButton.getText().toString();
+                String answer = getCountryName(correctAnswer);
+                ++totalGuesses; //Увеличение попыток пользователя
 
+                if(guess.equals(answer)){
+                    ++correctAnswers;
+
+                    answerTextView.setText(answer + "!");
+                    answerTextView.setTextColor(getResources().getColor(R.color.correct_answer));
+
+                    disableButtons();
+
+                    if(correctAnswers == FLAGS_IN_QUIZ){
+                        Toast toast = Toast.makeText(getActivity(), "Вы дали " + correctAnswers + " правильных ответов!", Toast.LENGTH_SHORT);
+                        toast.show();
+                        resetQuiz();
+                    }
+
+                    else{
+                        handler.postDelayed(
+                                new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        animate(true);
+                                    }
+                                }
+                        , 2000);
+                    }
+                }
+                else{
+                    flagImageView.startAnimation(shakeAnimation);
+                    // Сообщение "Incorrect!" выводится красным шрифтом
+                    answerTextView.setText(R.string.incorrect_answer);
+                    answerTextView.setTextColor(getResources().getColor(R.color.incorrect_answer));
+                    guessButton.setEnabled(false); // Блокировка неправильного ответа
+
+                }
             }
         };
 
@@ -247,5 +322,4 @@ public class MainActivityFragment extends Fragment {
                     guessRow.getChildAt(i).setEnabled(false);
                 }
         }
-
     }
